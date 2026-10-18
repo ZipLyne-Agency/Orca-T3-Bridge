@@ -89,12 +89,12 @@ The universal download supports Apple Silicon and Intel. See [macOS development 
 
 ### 1. Install the release
 
-Download **`orca-t3-bridge-0.2.0.tgz`** from the
+Download **`orca-t3-bridge-0.2.2.tgz`** from the
 [latest release](https://github.com/ZipLyne-Agency/orca-t3-bridge/releases/latest),
 then install it from your Downloads directory:
 
 ```sh
-npm install --global "$HOME/Downloads/orca-t3-bridge-0.2.0.tgz"
+npm install --global "$HOME/Downloads/orca-t3-bridge-0.2.2.tgz"
 orca-t3-bridge --version
 ```
 
