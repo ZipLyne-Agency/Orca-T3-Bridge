@@ -37,6 +37,7 @@ export const configSchema = z.object({
         (u.protocol === "https:" || (u.protocol === "http:" &&
           ["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)));
     }, "Use an HTTPS origin or loopback HTTP origin without credentials"),
+    autoDetectUrl: z.boolean().default(false),
     baseDir: absolutePath,
     executable: absolutePath,
     executableArgs: z.array(z.string().max(4096)).max(16).default([]),

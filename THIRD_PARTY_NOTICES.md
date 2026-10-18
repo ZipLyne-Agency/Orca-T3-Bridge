@@ -23,3 +23,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Mac app dependencies
+
+The Mac app bundles Sparkle 2.10.0 (MIT) and Node.js 22.23.1 (MIT and bundled third-party licenses). Their complete licenses are included in the app's Resources folder as Sparkle-LICENSE and Node-LICENSE. JavaScript dependencies retain their license files in Resources/bridge/node_modules.

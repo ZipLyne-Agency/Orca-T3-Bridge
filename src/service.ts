@@ -32,8 +32,8 @@ export function launchAgent(config: Config, configFile: string, entrypoint: stri
 }
 
 export async function service(action: string, config: Config, configFile: string,
-  entrypoint: string, output?: string): Promise<string> {
-  const agent = launchAgent(config, configFile, entrypoint);
+  entrypoint: string, output?: string, executable = process.execPath): Promise<string> {
+  const agent = launchAgent(config, configFile, entrypoint, executable);
   if (action === "render") {
     if (!output) return agent.contents;
     await writeFile(output, agent.contents, { flag: "wx", mode: 0o600 });
@@ -75,4 +75,31 @@ export async function service(action: string, config: Config, configFile: string
   if (loaded) await runProcess("/bin/launchctl", ["bootout", domain, agent.path]);
   await unlink(agent.path);
   return "Sync service removed. Existing Orca agents and imported T3 history remain.\n";
+}
+
+/** Recognize the same watcher even when its Node installation moved. */
+export function matchesLegacyLaunchAgent(value: unknown, label: string, entrypoint: string, configFile: string): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const agent = value as { Label?: unknown; ProgramArguments?: unknown };
+  const args = agent.ProgramArguments;
+  return agent.Label === label && Array.isArray(args) && typeof args[0] === "string" && args[0].startsWith("/") &&
+    JSON.stringify(args.slice(1)) === JSON.stringify([entrypoint, "sync", "--watch", "--config", configFile]);
+}
+
+export async function removeLegacyService(config: Config, configFile: string, entrypoint: string): Promise<void> {
+  const agent = launchAgent(config, configFile, entrypoint);
+  const before = await readFile(agent.path, "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (before === undefined) return;
+  const parsed: unknown = JSON.parse(await runProcess("/usr/bin/plutil", ["-convert", "json", "-o", "-", agent.path]));
+  if (!matchesLegacyLaunchAgent(parsed, agent.label, entrypoint, configFile))
+    throw new BridgeError("service_collision", `Inspect the conflicting login service at ${agent.path} before connecting.`);
+  const domain = `gui/${process.getuid!()}`;
+  const loaded = await runProcess("/bin/launchctl", ["print", `${domain}/${agent.label}`]).then(() => true).catch(() => false);
+  if (loaded) await runProcess("/bin/launchctl", ["bootout", domain, agent.path]);
+  if (await readFile(agent.path, "utf8") !== before)
+    throw new BridgeError("service_collision", `The login service changed while connecting. Inspect ${agent.path}.`);
+  await unlink(agent.path);
 }

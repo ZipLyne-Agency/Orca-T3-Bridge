@@ -17,6 +17,7 @@ import { configureProvider } from "../src/t3/setup.js";
 import { syncOnce, syncScopes } from "../src/t3/sync.js";
 import { pause, withTimeout } from "../src/util.js";
 import { publicError } from "../src/errors.js";
+import { connectDesktop, runDesktop } from "../src/desktop.js";
 
 async function freePort(): Promise<number> {
   const server = createServer();
@@ -123,6 +124,18 @@ async function run(): Promise<void> {
     assert.equal(first.discovered, 1); assert.equal(first.imported, 1);
     const again = await syncOnce(catalog, t3, state, config, { configFile: f.configFile, entrypoint });
     assert.equal(again.imported, 0);
+    phase = "desktop lifecycle";
+    await connectDesktop(f.configFile, entrypoint);
+    const desktopStop = new AbortController();
+    let desktopConnected = false;
+    await withTimeout(runDesktop(f.configFile, entrypoint, state, desktopStop.signal, event => {
+      assert.equal(event.phase, "connected", event.message);
+      assert.equal(event.imported, 0, "Desktop reconnect preserves existing imports");
+      desktopConnected = true;
+      desktopStop.abort();
+    }, async () => { throw new Error("The desktop worker should stop before sleeping"); }), 15_000);
+    assert.ok(desktopConnected);
+    assert.equal(f.fake.sends, 0, "Desktop connect and automatic sync never send prompts");
     const projects = await t3.http("/api/projects", z.object({ projects: z.array(z.object({ id: z.string() })) }));
     const projectId = projects.projects[0]?.id; assert.ok(projectId);
     const listed = await t3.rpc("server.listAcpRegistrySessions", { instanceId: config.t3.instanceId,
@@ -219,7 +232,7 @@ async function run(): Promise<void> {
     assert.ok(JSON.stringify(retained).includes("Fake response 1"));
     assert.equal(f.fake.interrupts, 0, "Disabling or detaching the bridge must not stop Orca's agent");
     assert.equal(f.fake.starts, 0);
-    process.stdout.write(JSON.stringify({ ok: true, phases: ["native discovery", "idempotent import", "transcript", "external update", "reconnect", "reply", "native approval", "disable keeps history"],
+    process.stdout.write(JSON.stringify({ ok: true, phases: ["native discovery", "idempotent import", "desktop lifecycle", "transcript", "external update", "reconnect", "reply", "native approval", "disable keeps history"],
       realT3: true, realOrcaProfileReader: true, fakeAgentSends: f.fake.sends, providerStarts: f.fake.starts }) + "\n");
   } catch (error) {
     // The isolated log contains only fixtures, but may still hold T3 bootstrap credentials.

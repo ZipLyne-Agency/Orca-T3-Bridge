@@ -10,7 +10,9 @@ export async function httpJson<S extends z.ZodType>(url: URL, schema: S,
   const maxBytes = /^\/api\/orchestration\/threads\/[^/]+\/bounded$/.test(url.pathname)
     ? 16_777_216 : 4_194_304;
   const response = await fetch(url, { ...init, redirect: "error",
-    signal: AbortSignal.timeout(timeoutMs) });
+    signal: AbortSignal.timeout(timeoutMs) }).catch(() => {
+      throw new BridgeError("t3_transport_failed", "The T3 HTTP connection failed. No mutation was automatically retried.");
+    });
   if (!response.ok) {
     await response.body?.cancel();
     throw new BridgeError(`t3_http_${response.status}`, `T3 refused the request (HTTP ${response.status}).`);

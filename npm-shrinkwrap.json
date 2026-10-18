@@ -1,12 +1,12 @@
 {
   "name": "orca-t3-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "orca-t3-bridge",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "license": "MIT",
       "dependencies": {
         "@agentclientprotocol/sdk": "1.9.0",

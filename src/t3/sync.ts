@@ -13,7 +13,7 @@ import { historySchema } from "../orca/schemas.js";
 // Creating a project with scripts: [] requires settings:write in T3. Keep the
 // empty scripts explicit so imports cannot inherit host automation scripts.
 export const syncScopes = ["orchestration:read", "orchestration:operate", "providers:manage", "settings:write"];
-const projectSchema = z.object({ id: z.string(), workspaceRoot: z.string() });
+const projectSchema = z.object({ id: z.string(), workspaceRoot: z.string(), deletedAt: z.string().nullable().default(null) });
 const projectSnapshotSchema = z.object({ projects: z.array(projectSchema).max(4096) });
 const importedSchema = z.object({ threadId: z.string(), imported: z.boolean() });
 const detailSchema = z.object({ projection: z.object({
@@ -23,7 +23,7 @@ const detailSchema = z.object({ projection: z.object({
 export interface BridgeInstallation { configFile: string; entrypoint: string }
 
 export async function syncOnce(catalog: Catalog, t3: T3Connection, state: State,
-  config: Config, installation: BridgeInstallation): Promise<{ discovered: number; imported: number }> {
+  config: Config, installation: BridgeInstallation): Promise<{ discovered: number; imported: number; skipped: number }> {
   await assertConfiguredProvider(t3, config, installation.configFile, installation.entrypoint);
   const sessions = await catalog.list(undefined, true);
   const projects = await t3.http("/api/projects", projectSnapshotSchema);
@@ -32,9 +32,11 @@ export async function syncOnce(catalog: Catalog, t3: T3Connection, state: State,
     const root = await canonicalPath(project.workspaceRoot).catch(() => null);
     if (root) roots.set(root, project);
   }
-  let imported = 0;
+  let imported = 0; let skipped = 0;
+  const removedRoots = new Set<string>();
   for (const session of sessions) {
     const cwd = await canonicalPath(session.cwd);
+    if (removedRoots.has(cwd)) { skipped++; continue; }
     let project = roots.get(cwd);
     if (!project) {
       const id = `orca-${digest({ source: config.sourceId, cwd }).slice(0, 32)}`;
@@ -47,6 +49,9 @@ export async function syncOnce(catalog: Catalog, t3: T3Connection, state: State,
       });
       roots.set(cwd, project);
     }
+    // A replayed create receipt can return a project the user subsequently deleted.
+    // Respect that removal and keep syncing other workspaces.
+    if (project.deletedAt !== null) { removedRoots.add(cwd); skipped++; continue; }
     const result = await t3.rpc("server.importAcpRegistrySession", {
       instanceId: config.t3?.instanceId ?? "orca", projectId: project.id,
       sessionId: session.id, title: session.title,
@@ -83,7 +88,7 @@ export async function syncOnce(catalog: Catalog, t3: T3Connection, state: State,
       }
     }
   }
-  return { discovered: sessions.length, imported };
+  return { discovered: sessions.length, imported, skipped };
 }
 
 export async function syncWatch(catalog: Catalog, state: State, config: Config,

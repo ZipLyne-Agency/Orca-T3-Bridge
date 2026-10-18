@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 - 2026-10-18
+
+- Add a native menu bar app with a bundled universal runtime, automatic discovery,
+  connection status, pause/resume, and launch at login.
+- Distribute Developer ID signed, Apple notarized DMG and ZIP downloads.
+- Deliver automatic updates through Sparkle with signed feeds and archives.
+- Preserve existing configuration, conversation IDs, and delivery receipts when
+  moving from the CLI; prevent overlapping sync workers.
+- Recover from unavailable local apps and changed automatic T3 ports, with bounded
+  worker crash recovery and clean shutdown.
+- Publish a responsive guide with a short explanation and full setup instructions.
+
 ## 0.1.0 - 2026-10-18
 
 Initial public release by ZipLyne.

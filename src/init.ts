@@ -57,7 +57,7 @@ export async function initialize(configFile: string, options: {
   if (!await exists(orcaApp)) throw new BridgeError("orca_application", "Install Orca or supply --orca-app with its application path.");
   const config = configSchema.parse({ sourceId: "local-orca", orca: { appPath: orcaApp },
     stateDir: join(environment.home, ".local", "state", "orca-t3-bridge"),
-    t3: { url, baseDir, ...t3App, instanceId: "orca" } });
+    t3: { url, autoDetectUrl: !options.t3Url, baseDir, ...t3App, instanceId: "orca" } });
   await mkdir(dirname(configFile), { recursive: true, mode: 0o700 });
   await writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`, { flag: "wx", mode: 0o600 });
   return config;

@@ -3,7 +3,7 @@ import { Readable, Writable } from "node:stream";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { defaultConfigPath, initialize } from "./init.js";
 import { ndJsonStream } from "@agentclientprotocol/sdk";
 import { loadConfig } from "./config.js";
@@ -16,6 +16,7 @@ import { T3Connection } from "./t3/connection.js";
 import { syncOnce, syncWatch, syncScopes } from "./t3/sync.js";
 import { configureProvider, providerInstance } from "./t3/setup.js";
 import { service } from "./service.js";
+import { connectDesktop, discoverT3Origin, runDesktop, syncLease } from "./desktop.js";
 
 const help = `Orca sessions in the standard T3 Code apps
 
@@ -28,6 +29,7 @@ const help = `Orca sessions in the standard T3 Code apps
   orca-t3-bridge sync --config ... [--watch]
   orca-t3-bridge service render --config ... [--output /absolute/path/agent.plist]
   orca-t3-bridge service install|start|uninstall|status --config ...
+  orca-t3-bridge desktop connect|run|info [--config ...]
   orca-t3-bridge receipts list --config ...
   orca-t3-bridge receipts resolve --config ... --operation ID --outcome accepted|rejected
 
@@ -55,12 +57,26 @@ async function main(): Promise<void> {
   if (!command || values.help) { process.stdout.write(help); return; }
   const configFile = values.config ? resolve(values.config) : defaultConfigPath();
   const entrypoint = fileURLToPath(import.meta.url);
-  if (command === "init") {
+  if (command === "init" || command === "desktop" && positionals[1] === "connect" &&
+    !await access(configFile).then(() => true).catch(() => false)) {
     await initialize(configFile, { t3Url: values["t3-url"], t3BaseDir: values["t3-base-dir"],
       t3App: values["t3-app"], orcaApp: values["orca-app"] });
-    process.stdout.write(`Configuration created at ${configFile}. Run doctor, then enable and sync.\n`); return;
+    if (command === "init") {
+      process.stdout.write(`Configuration created at ${configFile}. Run doctor, then enable and sync.\n`); return;
+    }
   }
-  const config = await loadConfig(command === "doctor" && values.offline && !values.config ? undefined : configFile);
+  let config = await loadConfig(command === "doctor" && values.offline && !values.config ? undefined : configFile);
+  if (command === "desktop" && positionals[1] === "connect") {
+    await connectDesktop(configFile, entrypoint);
+    process.stdout.write('{"ok":true}\n'); return;
+  }
+  if (command === "desktop" && positionals[1] === "info") {
+    process.stdout.write(JSON.stringify({ orcaApp: config.orca.appPath,
+      t3URL: config.t3?.url, t3Executable: config.t3?.executable,
+      t3BaseDir: config.t3?.baseDir, stateDir: config.stateDir }) + "\n"); return;
+  }
+  if (command !== "desktop" && command !== "provider" && command !== "service" &&
+    !(command === "doctor" && values.offline)) config = await discoverT3Origin(config);
   if (command === "provider") {
     process.stdout.write(`${JSON.stringify(providerInstance(configFile, entrypoint), null, 2)}\n`); return;
   }
@@ -94,6 +110,28 @@ async function main(): Promise<void> {
       } else throw new BridgeError("arguments", "Use receipts list or receipts resolve --operation ID --outcome accepted|rejected.");
       return;
     }
+    if (command === "desktop" && positionals[1] === "run") {
+      // The owning app holds stdin open. EOF also stops an orphan after a crash or update.
+      let wake: (() => void) | undefined;
+      const wakeNow = () => wake?.();
+      const end = () => { shutdown.abort(); wakeNow(); };
+      process.stdin.resume(); process.stdin.on("end", end); process.stdin.on("data", wakeNow);
+      shutdown.signal.addEventListener("abort", wakeNow);
+      try {
+        await runDesktop(configFile, entrypoint, state, shutdown.signal,
+          (event) => process.stdout.write(JSON.stringify(event) + "\n"),
+          (ms) => new Promise<void>((resolve) => {
+            const timer = setTimeout(finish, ms);
+            function finish() { clearTimeout(timer); wake = undefined; resolve(); }
+            wake = finish;
+            if (shutdown.signal.aborted) finish();
+          }));
+      } finally {
+        process.stdin.off("end", end); process.stdin.off("data", wakeNow); process.stdin.pause();
+        shutdown.signal.removeEventListener("abort", wakeNow);
+      }
+      return;
+    }
     const catalog = new Catalog(installedOrcaRpc(config), config);
     if (command === "acp") {
       const bridge = new BridgeAgent(catalog, config, state);
@@ -113,19 +151,24 @@ async function main(): Promise<void> {
     }
     if (!config.t3) throw new BridgeError("t3_not_configured", "Supply --config with the T3 environment connection.");
     if (command === "sync" && values.watch) {
-      await syncWatch(catalog, state, config, { configFile, entrypoint }, shutdown.signal,
-        (result) => process.stdout.write(JSON.stringify(result) + "\n")); return;
+      const release = syncLease(state, config);
+      try { await syncWatch(catalog, state, config, { configFile, entrypoint }, shutdown.signal,
+        (result) => process.stdout.write(JSON.stringify(result) + "\n")); }
+      finally { release(); }
+      return;
     }
     if (["enable", "disable", "sync"].includes(command)) {
       const scopes = command === "sync" ? syncScopes : [...syncScopes, "settings:write"];
-      const t3 = await T3Connection.open(config.t3, scopes);
+      const release = command === "sync" ? syncLease(state, config) : () => undefined;
+      let t3: T3Connection | undefined;
       try {
+        t3 = await T3Connection.open(config.t3, scopes);
         if (command === "sync") process.stdout.write(JSON.stringify(await syncOnce(catalog, t3, state, config, { configFile, entrypoint })) + "\n");
         else {
           await configureProvider(t3, config, configFile, entrypoint, command === "enable");
           process.stdout.write(command === "enable" ? "Orca provider enabled. Run sync to import sessions.\n" : "Orca provider disabled. Existing history was kept.\n");
         }
-      } finally { await t3.close(); }
+      } finally { await t3?.close(); release(); }
       return;
     }
     throw new BridgeError("arguments", "Unknown bridge command. Use --help.");

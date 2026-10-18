@@ -38,7 +38,7 @@ already hosts Orca and T3.
 | Pick up a conversation | Read recent history and reply to the same running agent |
 | Follow work from your phone | Read incremental output, reasoning and supported tool output |
 | Answer native requests | Respond to supported approvals, choices and written questions |
-| Keep sessions discoverable | Run sync manually or install an optional login service |
+| Keep sessions discoverable | Use the menu bar app with automatic sync and launch at login |
 | Disconnect cleanly | Disable the bridge while keeping imported history and Orca agents |
 
 **Early release:** this bridge depends on versioned Orca and T3 interfaces. The
@@ -47,8 +47,8 @@ adapter updates.
 
 ## Requirements
 
-- macOS with Orca and T3 Code installed on the same Mac.
-- Node.js **22.18 or later**, including `node:sqlite`, and npm.
+- macOS 13 or later with Orca and T3 Code installed on the same Mac.
+- The Mac app includes its runtime. The optional CLI needs Node.js **22.18 or later** and npm.
 - Orca and T3 desktop open, with an existing Orca agent session.
 - For phone access, the T3 mobile app already connected to this Mac's T3 environment.
 
@@ -62,16 +62,39 @@ adapter updates.
 The Mac must stay awake and reachable through T3's existing connection. The bridge
 does not set up remote access, port forwarding or phone pairing.
 
-## Quick start
+## Mac app
+
+[Download the signed and notarized Mac app](https://github.com/ZipLyne-Agency/orca-t3-bridge/releases/latest) or [read the interactive guide](https://ziplyne-agency.github.io/Orca-T3-Bridge/).
+
+1. Open the DMG and drag **Orca T3 Bridge** to **Applications**.
+2. Open Orca, T3 Code, then Orca T3 Bridge. Choose **Connect Orca and T3**.
+3. Use **Bridge** in the menu bar to check status, sync, pause, or change login and update preferences.
+
+The app starts at login after the first successful connection. It remembers whether
+syncing is enabled, waits when Orca or T3 is closed, and resumes when they return.
+Sparkle checks for signed updates automatically. **Check for Updates** is also
+available in Settings and the menu bar's More menu.
+
+Existing command-line configuration, imported conversation IDs, and delivery receipts
+are preserved. Connecting migrates the provider to the bundled runtime and removes
+only a matching legacy sync login service. Keep the app in Applications so its path
+stays stable across updates. Pausing stops discovery; existing conversations remain
+usable through T3. Quit stops the sync worker. To uninstall, turn off **Open at login**,
+disable the provider as described in the [guide](https://ziplyne-agency.github.io/Orca-T3-Bridge/#remove),
+quit, then remove the app.
+
+The universal download supports Apple Silicon and Intel. See [macOS development and release](docs/macos.md).
+
+## Quick start (optional CLI)
 
 ### 1. Install the release
 
-Download **`orca-t3-bridge-0.1.0.tgz`** from the
+Download **`orca-t3-bridge-0.2.0.tgz`** from the
 [latest release](https://github.com/ZipLyne-Agency/orca-t3-bridge/releases/latest),
 then install it from your Downloads directory:
 
 ```sh
-npm install --global "$HOME/Downloads/orca-t3-bridge-0.1.0.tgz"
+npm install --global "$HOME/Downloads/orca-t3-bridge-0.2.0.tgz"
 orca-t3-bridge --version
 ```
 
