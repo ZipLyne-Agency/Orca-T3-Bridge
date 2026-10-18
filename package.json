@@ -1,0 +1,57 @@
+{
+  "name": "orca-t3-bridge",
+  "version": "0.1.0",
+  "description": "Use existing Orca sessions from the standard T3 Code clients through ACP.",
+  "type": "module",
+  "bin": {
+    "orca-t3-bridge": "dist/src/cli.js"
+  },
+  "files": [
+    "dist/src",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "config.example.json",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test --test-concurrency=1 dist/test/*.test.js",
+    "test:t3": "npm run build && node dist/scripts/t3-smoke.js",
+    "check": "npm run typecheck && npm test",
+    "prepack": "npm run build",
+    "test:package": "npm run build && node dist/scripts/package-smoke.js"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.9.0",
+    "ws": "8.22.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "@types/ws": "8.18.2",
+    "typescript": "7.0.2"
+  },
+  "license": "MIT",
+  "author": "ZipLyne",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZipLyne-Agency/orca-t3-bridge.git"
+  },
+  "homepage": "https://github.com/ZipLyne-Agency/orca-t3-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/ZipLyne-Agency/orca-t3-bridge/issues"
+  },
+  "keywords": [
+    "orca",
+    "t3-code",
+    "acp",
+    "coding-agents",
+    "mobile",
+    "macos"
+  ]
+}

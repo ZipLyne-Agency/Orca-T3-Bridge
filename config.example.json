@@ -1,0 +1,18 @@
+{
+  "sourceId": "local-orca",
+  "orca": {
+    "appPath": "/Applications/Orca.app"
+  },
+  "stateDir": "/Users/you/.local/state/orca-t3-bridge",
+  "includeWorktrees": [],
+  "excludeWorktrees": [],
+  "t3": {
+    "url": "http://127.0.0.1:3773/",
+    "baseDir": "/Users/you/.t3",
+    "executable": "/Applications/T3 Code Nightly.app/Contents/MacOS/T3 Code (Nightly)",
+    "executableArgs": [
+      "/Applications/T3 Code Nightly.app/Contents/Resources/app.asar/apps/server/dist/bin.mjs"
+    ],
+    "instanceId": "orca"
+  }
+}
