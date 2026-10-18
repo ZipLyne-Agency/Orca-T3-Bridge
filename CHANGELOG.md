@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.1 - 2026-10-18
+## 0.2.2 - 2026-10-18
 
 - Renew expired observers without resending prompts or duplicating imported history.
 - Finish history refreshes while Orca is working; cancelling a refresh leaves Orca running.

@@ -1,6 +1,6 @@
 {
   "name": "orca-t3-bridge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Use existing Orca sessions from the standard T3 Code clients through ACP.",
   "type": "module",
   "bin": {

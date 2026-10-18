@@ -175,8 +175,8 @@ test("cancelling a history refresh leaves the underlying Orca agent running", as
         while (!dismiss && Date.now() < deadline) await pause(5);
         assert.ok(dismiss);
         await ctx.notify("session/cancel", { sessionId: session.id });
-        dismiss({ action: "cancel" });
         assert.equal((await pending).stopReason, "cancelled");
+        dismiss({ action: "cancel" });
         assert.equal(f.fake.interrupts, 0); assert.equal(f.fake.sends, 0);
         assert.equal(f.fake.nativeApprovals.length, 1);
       });
