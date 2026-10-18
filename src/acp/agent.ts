@@ -18,6 +18,7 @@ export class BridgeAgent {
   private readonly observers = new Map<string, Observer>();
   private readonly controls = new Map<string, string>();
   private readonly prompting = new Set<string>();
+  private readonly historyPrompts = new Set<string>();
   private readonly cancelled = new Set<string>();
   private readonly jobs = new Set<Promise<PromptResponse>>();
   private readonly mutations: Mutations;
@@ -72,23 +73,26 @@ export class BridgeAgent {
       .onNotification("session/cancel", async ({ params }) => {
         const observer = this.observers.get(params.sessionId);
         if (observer && this.prompting.has(params.sessionId)) {
-          await this.mutations.cancel(observer.session, observer.snapshot?.fence);
+          if (!this.historyPrompts.has(params.sessionId)) await this.mutations.cancel(observer.session, observer.snapshot?.fence);
           this.cancelled.add(params.sessionId);
           await observer.refresh();
         }
       });
   }
 
-  private async load(id: string, cwd: string, client: AgentContext): Promise<Observer> {
+  private async load(id: string, cwd: string, client: AgentContext, replay = true): Promise<Observer> {
     if (this.closed) throw new BridgeError("bridge_closed", "The bridge connection is closed.");
     const prior = this.observers.get(id);
-    if (prior && !prior.failure) { await prior.refresh(true); return prior; }
+    if (prior && ((!prior.failure && !prior.expired) || replay && this.prompting.has(id))) {
+      if (replay) await prior.refresh(true);
+      return prior;
+    }
     if (prior) { await prior.close(); this.observers.delete(id); }
     if (this.observers.size >= this.config.limits.attachedPerProcess)
       throw new BridgeError("observation_limit", "This bridge connection reached its observation limit.");
     const session = await this.catalog.get(id, cwd);
     const observer = new Observer(session, this.catalog, this.config, client, this.state, this.t3Client);
-    await observer.refresh(true);
+    if (replay) await observer.refresh(true);
     this.observers.set(id, observer);
     observer.start();
     return observer;
@@ -105,20 +109,27 @@ export class BridgeAgent {
         update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: message } } });
       return { stopReason: "end_turn" };
     }
-    const observer = this.observers.get(params.sessionId);
+    let observer = this.observers.get(params.sessionId);
     if (!observer) throw new BridgeError("session_not_loaded", "Load this imported Orca session before sending a reply.");
     if (this.prompting.has(params.sessionId)) throw new BridgeError("session_busy", "A reply is already being observed for this session.");
     this.prompting.add(params.sessionId);
     this.cancelled.delete(params.sessionId);
     const refreshOnly = text.trim() === "/orca-refresh";
-    observer.importingHistory = refreshOnly;
-    observer.active = true;
-    observer.interactions.beginTurn();
-    const observationSignal = AbortSignal.any([signal, observer.controller.signal]);
+    if (refreshOnly) this.historyPrompts.add(params.sessionId);
     let operationId: string | undefined;
     let settled = false;
     try {
+      // Renew before any send. Never replay a prompt when an observer expires.
+      if (observer.expired || observer.failure instanceof BridgeError && observer.failure.code === "observation_expired")
+        observer = await this.load(params.sessionId, observer.session.cwd, client, false);
+      if (observer.failure) throw observer.failure;
+      if (signal.aborted || this.closed || this.cancelled.has(params.sessionId)) return { stopReason: "cancelled" };
+      observer.importingHistory = refreshOnly;
+      observer.active = true;
+      observer.interactions.beginTurn();
+      const observationSignal = AbortSignal.any([signal, observer.controller.signal]);
       const before = await observer.refresh();
+      if (refreshOnly && !before.waiting) { settled = true; return { stopReason: "end_turn" }; }
       if (!refreshOnly) observer.activeProjection.suppressUser(text);
       const receipt = refreshOnly ? { operationId: "local-refresh", startObserved: true } :
         await this.mutations.send(observer.session, text, before.fence);
@@ -139,6 +150,7 @@ export class BridgeAgent {
           await observer.activeProjection.text("The pending request remains in Orca. Answer it there, or send /orca-refresh to open it again.\n");
           return { stopReason: "end_turn" };
         }
+        if (refreshOnly && !current.waiting) { settled = true; return { stopReason: "end_turn" }; }
         if (current.exited || (started && current.working === false && !current.waiting)) {
           settled = true; return { stopReason: "end_turn" };
         }
@@ -157,6 +169,7 @@ export class BridgeAgent {
       if (operationId && !settled) this.state.finish(operationId, "unknown");
       observer.active = false; observer.importingHistory = false;
       this.prompting.delete(params.sessionId); this.cancelled.delete(params.sessionId);
+      this.historyPrompts.delete(params.sessionId);
     }
   }
 

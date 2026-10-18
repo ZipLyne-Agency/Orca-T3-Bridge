@@ -1,11 +1,7 @@
-A native Mac menu bar app for using your existing Orca agents through T3 Code.
+Fix repeated "Thread failed" notifications from background history refreshes.
 
-Download the DMG, drag **Orca T3 Bridge** to **Applications**, open Orca and T3, then connect once. The app includes its runtime and supports Apple Silicon and Intel on macOS 13 or later.
+Expired observers renew automatically. History refreshes finish while Orca keeps working, and cancelling a refresh leaves the original agent running. Archived and deleted threads stay excluded. An unresolved refresh failure stops automatic retries even when new output arrives.
 
-Automatic discovery, launch at login, pause/resume, and Sparkle updates are built in. The app and disk image are signed with Developer ID and notarized by Apple. Update feeds and archives carry dedicated Sparkle signatures.
+If an old failed refresh remains, send `/orca-refresh` in that T3 thread, then resume sync from the Bridge menu. To keep a workspace only in Orca, add its exact absolute path to `excludeWorktrees` in the bridge configuration.
 
-Existing CLI users keep their configuration, imported conversations, and delivery receipts. Connecting moves the T3 provider to the bundled runtime and replaces a matching legacy sync login service.
-
-[Explain it simply or read the full guide](https://ziplyne-agency.github.io/Orca-T3-Bridge/).
-
-The Mac must be awake and reachable, with Orca and T3 open for syncing. Phone pairing remains T3's normal setup. New empty Orca projects appear after they contain a discoverable agent session. This early release is verified against Orca 1.4.226 and T3 Code Nightly 0.0.46-nightly.20261014.3132.
+This update preserves your configuration, conversation mappings, and delivery receipts. The Mac app and disk image are signed and notarized, with a signed Sparkle update.

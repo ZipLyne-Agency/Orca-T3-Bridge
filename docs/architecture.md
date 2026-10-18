@@ -76,4 +76,6 @@ Terminal approval screens do not have structured form metadata. The bridge repor
 
 History delivery and T3 persistence are separate transactions. Ordinary reconnects are deduplicated, but a process crash precisely between delivery and recording projection progress can require inspecting the imported conversation. Live conversation deletion and historical edit reconciliation are outside this first version.
 
-If a local refresh fails in T3, inspect its failed turn and use `/orca-refresh` there to retry the local read. The watcher stops after persistent failures; restart it once the incompatibility is resolved and new source activity is available.
+History refreshes copy the current snapshot and finish even when Orca is still working. Pending native forms remain interactive until answered, cancelled, handed off or the observation deadline is reached. Cancelling a history refresh leaves the Orca agent running. Idle observers expire quietly and are renewed on the next load or prompt; renewal does not resend a prompt.
+
+If a local refresh fails in T3, inspect its failed turn and use `/orca-refresh` there to retry the local read. Automatic sync stops on an unresolved failed refresh even if newer Orca output changes the source revision. After a successful manual recovery, resume sync. Removed projects and removed or archived threads are skipped.

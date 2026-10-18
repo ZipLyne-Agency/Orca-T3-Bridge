@@ -169,6 +169,26 @@ async function run(): Promise<void> {
     assert.equal(projection!.projection.messages.filter((message) => typeof message === "object" && message !== null &&
       "text" in message && typeof message.text === "string" && message.text.includes("Existing Orca answer")).length, 1);
     assert.equal(f.fake.sends, 0);
+    phase = "refresh while working";
+    const beforeWorking = await t3.http(`/api/orchestration/threads/${encodeURIComponent(threadId)}`, projectionSchema);
+    const priorOrdinal = Math.max(0, ...z.array(z.object({ ordinal: z.number() })).parse(beforeWorking.projection.runs).map((run) => run.ordinal));
+    f.fake.terminals[0]!.remaining = 10_000;
+    f.fake.terminals[0]!.lastOutput++;
+    await syncOnce(catalog, t3, state, config, { configFile: f.configFile, entrypoint });
+    const workingUntil = Date.now() + 5000;
+    let refreshCompleted = false;
+    while (Date.now() < workingUntil) {
+      const detail = await t3.http(`/api/orchestration/threads/${encodeURIComponent(threadId)}`, projectionSchema);
+      const runs = z.array(z.object({ ordinal: z.number(), status: z.string(), userMessageId: z.string() })).parse(detail.projection.runs);
+      const latest = runs.sort((a, b) => b.ordinal - a.ordinal)[0];
+      if (latest?.status === "failed") assert.fail("Background refresh failed while Orca was working");
+      if (latest && latest.ordinal > priorOrdinal && latest.status === "completed" && latest.userMessageId.startsWith("orca-refresh-")) { refreshCompleted = true; break; }
+      await pause(100);
+    }
+    assert.ok(refreshCompleted, "A history refresh must complete while the underlying agent is still working");
+    assert.ok(f.fake.terminals[0]!.remaining > 0);
+    assert.equal(f.fake.sends, 0); assert.equal(f.fake.interrupts, 0);
+    f.fake.terminals[0]!.remaining = 0;
     phase = "send";
     await t3.rpc("orchestration.dispatchCommand", { type: "message.dispatch", commandId: "fixture-send-1",
       threadId, messageId: "fixture-message-1", text: "Reply through the real T3 server",
@@ -232,7 +252,7 @@ async function run(): Promise<void> {
     assert.ok(JSON.stringify(retained).includes("Fake response 1"));
     assert.equal(f.fake.interrupts, 0, "Disabling or detaching the bridge must not stop Orca's agent");
     assert.equal(f.fake.starts, 0);
-    process.stdout.write(JSON.stringify({ ok: true, phases: ["native discovery", "idempotent import", "desktop lifecycle", "transcript", "external update", "reconnect", "reply", "native approval", "disable keeps history"],
+    process.stdout.write(JSON.stringify({ ok: true, phases: ["native discovery", "idempotent import", "desktop lifecycle", "transcript", "external update", "reconnect", "refresh while working", "reply", "native approval", "disable keeps history"],
       realT3: true, realOrcaProfileReader: true, fakeAgentSends: f.fake.sends, providerStarts: f.fake.starts }) + "\n");
   } catch (error) {
     // The isolated log contains only fixtures, but may still hold T3 bootstrap credentials.

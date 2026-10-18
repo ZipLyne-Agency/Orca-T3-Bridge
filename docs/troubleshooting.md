@@ -13,6 +13,8 @@ app versions in the README before upgrading either app.
 | No sessions imported | Confirm an Orca agent is running and check exact workspace include/exclude paths |
 | Provider ID already owned | Choose a separate `t3.instanceId`; the bridge will not replace another command |
 | History stops updating | Open the failed turn, use `/orca-refresh`, and check service status/logs |
+| Repeated observation lifetime failures in 0.2.0 | Update the bridge, send `/orca-refresh` in the affected thread, then resume sync |
+| Keep a workspace only in Orca | Add its exact absolute path to `excludeWorktrees` in the bridge configuration and resume sync; hiding a project in a T3 client does not change bridge eligibility |
 | Showing recent Orca history | Only the T3 display window is bounded; older context remains with Orca |
 | Runtime instructions unsupported | T3's instruction template changed; use the tested version or report compatibility details |
 | Native form unsupported | Answer that request in Orca, then refresh in T3 |

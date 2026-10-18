@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { client, type SessionNotification } from "@agentclientprotocol/sdk";
+import { client, type PromptResponse, type SessionNotification } from "@agentclientprotocol/sdk";
 import { fixture } from "./fixtures/fake-orca.js";
 import { Catalog } from "../src/orca/catalog.js";
 import { installedOrcaRpc } from "../src/orca/runtime.js";
@@ -116,6 +116,71 @@ test("the sync refresh command hydrates history without forwarding a prompt or i
         assert.ok(JSON.stringify(updates).includes("Existing Orca answer"));
       });
   } finally { await bridge.close(); state.close(); await f.close(); }
+});
+
+test("history refresh finishes while Orca is working and renews expired observers without resending", { timeout: 5000 }, async (t) => {
+  const f = await fixture(); const state = new State(f.config.stateDir);
+  const catalog = new Catalog(f.fake, f.config); const bridge = new BridgeAgent(catalog, f.config, state);
+  const updates: SessionNotification[] = [];
+  t.mock.timers.enable({ apis: ["Date"] });
+  try {
+    await client().onNotification("session/update", ({ params }) => { updates.push(params); })
+      .connectWith(bridge.app, async (ctx) => {
+        await ctx.request("initialize", { protocolVersion: 1, clientInfo: { name: "t3-code", version: "fixture" }, clientCapabilities: {} });
+        const [session] = await catalog.list(); assert.ok(session);
+        await ctx.request("session/load", { sessionId: session.id, cwd: session.cwd, mcpServers: [] });
+        for (const iteration of [0, 1, 2]) {
+          if (iteration) t.mock.timers.tick(f.config.limits.observationMs + 1);
+          if (iteration === 1) {
+            await pause(1100); // Let the idle observer expire before the next request.
+            assert.ok(!JSON.stringify(updates).includes("lifetime limit"));
+          }
+          f.fake.terminals[0]!.remaining = 100;
+          const reads = f.fake.calls.filter((call) => call.method === "terminal.wait").length;
+          updates.length = 0;
+          const response: PromptResponse = await ctx.request("session/prompt", { sessionId: session.id, prompt: [
+            { type: "text", text: "/orca-refresh" }, { type: "text", text: runtimeBlock },
+          ] });
+          assert.equal(response.stopReason, "end_turn");
+          assert.ok(f.fake.terminals[0]!.remaining > 0, "Refresh must finish before the agent does");
+          assert.equal(f.fake.calls.filter((call) => call.method === "terminal.wait").length - reads, 1);
+          assert.equal(JSON.stringify(updates).includes("Existing Orca answer"), iteration === 0, "Renewal preserves history deduplication");
+          assert.equal(f.fake.sends, 0); assert.equal(f.fake.interrupts, 0); assert.equal(f.fake.starts, 0);
+        }
+        t.mock.timers.tick(f.config.limits.observationMs + 1);
+        f.fake.terminals[0]!.remaining = 0;
+        await ctx.request("session/prompt", { sessionId: session.id, prompt: [
+          { type: "text", text: "One explicit reply after expiry" }, { type: "text", text: runtimeBlock },
+        ] });
+        assert.equal(f.fake.sends, 1, "Renewal must deliver the explicit reply exactly once");
+      });
+  } finally { await bridge.close(); state.close(); await f.close(); }
+});
+
+test("cancelling a history refresh leaves the underlying Orca agent running", async () => {
+  const f = await fixture(); f.fake.nativeEnabled = true;
+  f.fake.nativeApprovals.push({ itemId: "pending", revision: 1, sequence: 1, observedAt: Date.now(),
+    body: { kind: "approval", title: "Fixture approval", options: [{ id: "allow", label: "Allow" }], resolution: { state: "pending" } } });
+  const state = new State(f.config.stateDir); const catalog = new Catalog(f.fake, f.config);
+  const bridge = new BridgeAgent(catalog, f.config, state);
+  let dismiss: ((value: { action: "cancel" }) => void) | undefined;
+  try {
+    await client().onRequest("elicitation/create", () => new Promise<{ action: "cancel" }>((resolve) => { dismiss = resolve; }))
+      .connectWith(bridge.app, async (ctx) => {
+        await ctx.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+        const session = (await catalog.list()).find((item) => item.ref.kind === "native"); assert.ok(session);
+        await ctx.request("session/load", { sessionId: session.id, cwd: session.cwd, mcpServers: [] });
+        const pending = ctx.request("session/prompt", { sessionId: session.id, prompt: [{ type: "text", text: "/orca-refresh" }] });
+        const deadline = Date.now() + 2000;
+        while (!dismiss && Date.now() < deadline) await pause(5);
+        assert.ok(dismiss);
+        await ctx.notify("session/cancel", { sessionId: session.id });
+        dismiss({ action: "cancel" });
+        assert.equal((await pending).stopReason, "cancelled");
+        assert.equal(f.fake.interrupts, 0); assert.equal(f.fake.sends, 0);
+        assert.equal(f.fake.nativeApprovals.length, 1);
+      });
+  } finally { dismiss?.({ action: "cancel" }); await bridge.close(); state.close(); await f.close(); }
 });
 
 test("T3 refresh deduplicates persisted history across bridge connections and reload replays ACP history", async () => {

@@ -23,6 +23,8 @@ export class Observer {
   private job: Promise<void> | undefined;
   private readonly started = Date.now();
 
+  get expired(): boolean { return Date.now() - this.started >= this.config.limits.observationMs; }
+
   constructor(readonly session: OrcaSession, private readonly catalog: Catalog,
     private readonly config: Config, client: AgentContext, state: State, t3Client: boolean) {
     this.projection = new Projection(session.id, (update) => client.notify("session/update", update));
@@ -62,7 +64,7 @@ export class Observer {
   private async loop(): Promise<void> {
     let failures = 0;
     while (!this.controller.signal.aborted) {
-      if (Date.now() - this.started >= this.config.limits.observationMs) {
+      if (this.expired && !this.active) {
         this.failure = new BridgeError("observation_expired", "This bridge observation reached its lifetime limit. Reopen the conversation to refresh it; Orca keeps running.");
         break;
       }
@@ -75,7 +77,10 @@ export class Observer {
         await pause(Math.min(5000, 500 * 2 ** failures), this.controller.signal);
       }
     }
-    if (this.failure && !this.controller.signal.aborted)
+    // Idle expiry is a bounded subscription ending, not a failed agent turn.
+    // A later explicit load or prompt will attach a fresh observer.
+    if (this.failure && !this.controller.signal.aborted &&
+      !(this.failure instanceof BridgeError && this.failure.code === "observation_expired"))
       await this.projection.text(publicError(this.failure)).catch(() => undefined);
   }
 

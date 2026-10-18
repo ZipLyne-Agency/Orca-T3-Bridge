@@ -17,8 +17,8 @@ const projectSchema = z.object({ id: z.string(), workspaceRoot: z.string(), dele
 const projectSnapshotSchema = z.object({ projects: z.array(projectSchema).max(4096) });
 const importedSchema = z.object({ threadId: z.string(), imported: z.boolean() });
 const detailSchema = z.object({ projection: z.object({
-  thread: z.object({ deletedAt: z.string().nullable(), providerInstanceId: z.string() }),
-  runs: z.array(z.object({ status: z.string(), userMessageId: z.string() })),
+  thread: z.object({ deletedAt: z.string().nullable(), archivedAt: z.string().nullable(), providerInstanceId: z.string() }),
+  runs: z.array(z.object({ ordinal: z.number(), status: z.string(), userMessageId: z.string() })),
 }) });
 export interface BridgeInstallation { configFile: string; entrypoint: string }
 
@@ -69,14 +69,27 @@ export async function syncOnce(catalog: Catalog, t3: T3Connection, state: State,
     }
     if (result.imported || state.refreshRevision(mapping) !== revision) {
       const detail = await t3.http(`/api/orchestration/threads/${encodeURIComponent(result.threadId)}/bounded?compactTurnItems=true`, detailSchema);
+      if (detail.projection.thread.deletedAt !== null || detail.projection.thread.archivedAt !== null) { skipped++; continue; }
       if (detail.projection.thread.providerInstanceId !== config.t3?.instanceId)
         throw new BridgeError("thread_provider_changed", "An imported thread now uses another provider. Refresh stopped before dispatch.");
       const key = digest({ session: session.id, thread: result.threadId, revision }).slice(0, 40);
       const messageId = `orca-refresh-${key}`;
+      // Source activity changes the refresh ID. Check the latest run as well as
+      // this revision so activity cannot turn one failure into endless retries.
+      const latest = detail.projection.runs.reduce<typeof detail.projection.runs[number] | undefined>(
+        (last, run) => !last || run.ordinal > last.ordinal ? run : last, undefined);
+      if (latest?.userMessageId.startsWith("orca-refresh-") && ["failed", "cancelled", "interrupted"].includes(latest.status))
+        throw new BridgeError("refresh_failed", "A local history refresh failed in T3. Inspect that imported conversation and send /orca-refresh there to retry without forwarding a prompt to Orca.");
       const prior = detail.projection.runs.find((run) => run.userMessageId === messageId);
       if (prior?.status === "completed") { state.markRefreshed(mapping, revision); continue; }
-      if (prior && ["failed", "cancelled", "interrupted"].includes(prior.status))
+      if (prior && ["failed", "cancelled", "interrupted"].includes(prior.status)) {
+        // A later completed manual turn already read this unchanged snapshot.
+        // Do not reuse the failed command ID or demand unrelated Orca activity.
+        if (latest && latest.ordinal > prior.ordinal && latest.status === "completed") {
+          state.markRefreshed(mapping, revision); continue;
+        }
         throw new BridgeError("refresh_failed", "A local history refresh failed in T3. Inspect that imported conversation and send /orca-refresh there to retry without forwarding a prompt to Orca.");
+      }
       const busy = detail.projection.runs.some((run) => ["preparing", "queued", "starting", "running", "waiting"].includes(run.status));
       if (!prior && !busy && detail.projection.thread.deletedAt === null) {
         await t3.rpc("orchestration.dispatchCommand", { type: "message.dispatch",

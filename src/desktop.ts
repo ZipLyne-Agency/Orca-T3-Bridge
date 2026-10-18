@@ -100,7 +100,7 @@ export async function runDesktop(configFile: string, entrypoint: string, state: 
         const result = await syncOnce(catalog, connection, state, config, { configFile, entrypoint });
         failures = 0;
         emit({ phase: "connected", message: result.skipped
-          ? `Sync is active. ${result.skipped} session(s) are in removed T3 projects and were left unchanged.`
+          ? `Sync is active. ${result.skipped} session(s) are in removed projects or removed/archived threads and were left unchanged.`
           : "New Orca sessions sync automatically.", ...result, lastSync: new Date().toISOString() });
       } catch (error) {
         await connection?.close(); connection = undefined;
