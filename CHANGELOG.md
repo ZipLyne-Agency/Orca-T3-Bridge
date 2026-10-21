@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 - 2026-10-21
+
+- Run in the background without a menu bar item.
+- Open controls from Applications or Spotlight to manage sync, login, and updates.
+- Keep syncing when the controls window closes; login launches remain quiet.
+
 ## 0.2.2 - 2026-10-18
 
 - Renew expired observers without resending prompts or duplicating imported history.

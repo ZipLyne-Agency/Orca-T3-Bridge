@@ -1,6 +1,6 @@
 # Mac app development and release
 
-The native menu bar app lives in `macos/`. It supervises the same TypeScript bridge
+The native background app lives in `macos/`. It supervises the same TypeScript bridge
 used by the CLI. Configuration and receipts live outside the application bundle,
 so app updates preserve them. Sparkle is pinned in SwiftPM; Node downloads are pinned
 by architecture and SHA-256 in `release/runtime.json`.
@@ -60,7 +60,7 @@ Pause stops session discovery and preserves existing T3 conversations. Sync resp
 sync never sends agent prompts. A user reply still follows the existing durable
 receipt and uncertain-send handling. Native controls do not bypass it.
 
-Before shipping, check the menu bar, connect, pause/resume, app relaunch, login item
+Before shipping, check that no menu bar item appears, reopen the controls window, connect, pause/resume, app relaunch, login item
 registration, and an actual Sparkle update from a lower build. A process relaunch
 is evidence for app recovery; it does not prove a full computer reboot. Intel
 compilation does not prove Intel runtime behavior.

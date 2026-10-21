@@ -128,7 +128,7 @@ struct SetupView: View {
                     Spacer()
                     Button("Check for Updates...") { updates.check() }.disabled(!updates.canCheck)
                 }.font(.caption)
-                Text("After connecting, the bridge opens at login. Manage syncing, login and automatic updates from its menu bar icon.")
+                Text("After connecting, the bridge runs in the background at login. Open Orca T3 Bridge from Applications or Spotlight to manage syncing, login and updates. Closing the window keeps syncing active.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(30)
         }.frame(width: 500, height: 660)

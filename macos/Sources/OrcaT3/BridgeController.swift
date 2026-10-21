@@ -27,7 +27,6 @@ final class BridgeController: ObservableObject {
     @Published var t3URL = ""
     @Published var t3BaseDir = ""
     @Published var hasConfiguration = false
-    var onStateChange: (() -> Void)?
     private var worker: ProcessSession?
     private var workerTask: Task<Void, Never>?
     private var restartTask: Task<Void, Never>?
@@ -201,7 +200,7 @@ final class BridgeController: ObservableObject {
     }
     func wakeFromSleep() { if enabled { syncNow() }; updateLoginStatus() }
     func setState(_ phase: String, _ message: String) {
-        self.phase = phase; self.message = message; onStateChange?()
+        self.phase = phase; self.message = message
     }
 
     func setLogin(_ enabled: Bool) {

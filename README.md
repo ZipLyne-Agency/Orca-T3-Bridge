@@ -38,7 +38,7 @@ already hosts Orca and T3.
 | Pick up a conversation | Read recent history and reply to the same running agent |
 | Follow work from your phone | Read incremental output, reasoning and supported tool output |
 | Answer native requests | Respond to supported approvals, choices and written questions |
-| Keep sessions discoverable | Use the menu bar app with automatic sync and launch at login |
+| Keep sessions discoverable | Use the background app with automatic sync and launch at login |
 | Disconnect cleanly | Disable the bridge while keeping imported history and Orca agents |
 
 **Early release:** this bridge depends on versioned Orca and T3 interfaces. The
@@ -68,12 +68,12 @@ does not set up remote access, port forwarding or phone pairing.
 
 1. Open the DMG and drag **Orca T3 Bridge** to **Applications**.
 2. Open Orca, T3 Code, then Orca T3 Bridge. Choose **Connect Orca and T3**.
-3. Use **Bridge** in the menu bar to check status, sync, pause, or change login and update preferences.
+3. Open **Orca T3 Bridge** again from Applications or Spotlight to check status, sync, pause, or change login and update preferences. Closing the window keeps the bridge running in the background.
 
 The app starts at login after the first successful connection. It remembers whether
 syncing is enabled, waits when Orca or T3 is closed, and resumes when they return.
 Sparkle checks for signed updates automatically. **Check for Updates** is also
-available in Settings and the menu bar's More menu.
+available in Settings and the controls window's More menu.
 
 Existing command-line configuration, imported conversation IDs, and delivery receipts
 are preserved. Connecting migrates the provider to the bundled runtime and removes

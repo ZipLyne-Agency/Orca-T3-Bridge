@@ -1,7 +1,5 @@
-Fix repeated "Thread failed" notifications from background history refreshes.
+Orca T3 Bridge now runs in the background without a menu bar item.
 
-Expired observers renew automatically. History refreshes finish while Orca keeps working, and cancelling a refresh leaves the original agent running. Archived and deleted threads stay excluded. An unresolved refresh failure stops automatic retries even when new output arrives.
-
-If an old failed refresh remains, send `/orca-refresh` in that T3 thread, then resume sync from the Bridge menu. To keep a workspace only in Orca, add its exact absolute path to `excludeWorktrees` in the bridge configuration.
+Open Orca T3 Bridge from Applications or Spotlight to check status, sync, pause, or change login and update preferences. Closing its window keeps syncing active. Launch at login stays quiet.
 
 This update preserves your configuration, conversation mappings, and delivery receipts. The Mac app and disk image are signed and notarized, with a signed Sparkle update.
